@@ -19,18 +19,176 @@
     <canvas id="myCanvas" width="750px" height="750px"></canvas>
 </body>
 <script>
-
     // setting up the canvas and one paper tool
     var canvas = document.getElementById('myCanvas');
     paper.setup(canvas);
     var tool = new paper.Tool();
-
+  
+    //define global vars
+    var users = {};
+    var uniqueUsers;
+    var uniqueColors;
+    var context = canvas.getContext("2d");
+    var duplicateColors = {};
+    var colorOptions = ['red', 'orange', 'yellow','green', 'blue', 'purple', 'pink', 'brown', 'black', 'gray', 'chocolate', 'teal', 'olive', 'thistle', 'coral'];
+    
     // getting the URL (you may want to use for Exercise 3)
     var url = window.location.href;
+    var socket = new WebSocket('ws://p4-fibrahimb-fibrahimb910527.codeanyapp.com:8765/');
+    
+    //activate the small and large windows
+    //url.indexOf("large") >-1
+    //url.indexOf("small") >-1 
+  
+    //when browser A sends a drawing tool as a JSON string
+    socket.onopen = function() {
+      var path = new paper.Path();  
+      var userColor = pickColor();
+      var userID = randomID();
+      var userCount = 1;
+      var user = {
+        'id': userID, 
+        'type': 'user', 
+        'color': userColor,
+        'count': userCount+1
+      };
+      socket.send(JSON.stringify(user));
+      //if (url.indexOf("small")>-1) {
+        path = new paper.Path();
+      //}
+      tool.onMouseMove = function(event) {
+        var point = {
+          'x': event.point.x, 
+          'y': event.point.y, 
+          'color': userColor, 
+          'id': userID, 
+          'type': 'addPoint',
+          'count': userCount+1
+        };
+        console.log(point);
+        socket.send(JSON.stringify(point));
+        //if (url.indexOf("small")>-1) {
+          path.strokeColor = userColor;
+          //duplicateColors.push(userColor);
+          path.lineTo(event.point);
+        //}
+      }
+      window.ondeviceorientation = function(e) {
+        userColor = pickColor();
+        if (e.gamma > 45) {
+          //userColor = pickColor();
+          path.strokeColor = userColor;
+          path.lineTo(e.point);
+        }
+      }
+      window.addEventListener('deviceorientation', function(e) {
+        console.log(e)
+      })
+      
+       //listen to shake event
+    var shakeEvent = new Shake({threshold: 15});
+    shakeEvent.start();
+    window.addEventListener('shake', function(){
+        alert("Shaking");
+      canvas.width = canvas.width; 
+      context.clearRect(0,0,canvas.width,canvas.height);
+    }, false);
 
-    // var socket = new WebSocket(
-    //     'ws://your url here:8765/');
+    //stop listening
+    function stopShake(){
+        shakeEvent.stop();
+    }
+      
+      
+      //if (window.DeviceOrientationEvent) {
+      //  window.addEventListener('deviceorientation', function(event) {
+      //    //console.log(event.acceleration.x + ' m/s2');
+      //    if (event.gamma > 45) {
+      //      path.strokeColor = pickColor();
+      //    }
+      //  });
+      //}
+    }
+        
+    //when browser B receives the drawing tool as a JSON string
+    socket.onmessage = function(receiveMessage) {
+      var parsed = JSON.parse(receiveMessage.data);
+      var point;
+      //if (url.indexOf("large")>-1) {
+        //sanity check to make sure the browser is tracking these points
+        console.log(point);
+        if (parsed.type == "addPoint") {
+          point = new paper.Point(parsed.x, parsed.y);
+          //check if this is a different user. If it is, then make a new color path
+          if (!(parsed.id in users)) {
+            users[parsed.id] = new paper.Path();
+            users[parsed.id].strokeColor = parsed.color;
+            //duplicateColors.push(parsed.color);
+            //users.push(parsed.id);
+            duplicateColors[parsed.id] = parsed.color;
+          }
+          users[parsed.id].lineTo(point);
+        }
+        else {
+          users[parsed.id] = new paper.Path();
+          users[parsed.id].strokeColor = parsed.color;
+          //duplicateColors.push(parsed.color);
+          //users.push(parsed.id);
+          duplicateColors[parsed.id] = parsed.color;
+        }
+      //}
+    };
+    
+    // notify console if socket closes unexpectedly
+    socket.onclose = function(e) {
+      console.error('Chat socket closed unexpectedly');
+    };
+  
+    
+    function pickColor() {
+      var i = Math.floor(Math.random() * 15);
+      var chosenColor = colorOptions[i];
+      //difference between two arrays borrowed from https://stackoverflow.com/questions/1187518/how-to-get-the-difference-between-two-arrays-in-javascript
+      var possibleColors = function arr_diff (duplicateColors, colorOptions) {
+        var a = [], diff = [];
+        for (var i = 0; i < duplicateColors.length; i++) {
+          a[duplicateColors[i]] = true;
+        }
+        for (var i = 0; i < colorOptions.length; i++) {
+          if (a[colorOptions[i]]) {
+            delete a[colorOptions[i]];
+          } else {
+            a[colorOptions[i]] = true;
+          }
+        }
+        for (var k in a) {
+          diff.push(k);
+        }
+        return diff;
+      }
+      if (chosenColor in possibleColors) {
+        while (chosenColor in possibleColors) {  
+          console.log(possibleColors);
+          i = floor(Math.random() * 15);
+          chosenColor = colorOptions[i];
+        } 
+        return chosenColor;
+      }
+      return chosenColor;
+   }
+  
+  //generate a random ID and keep track of it to keep track of how many colors you need
+  function randomID() {
+    var randLetter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+    var uniqid = randLetter + Date.now();
+    return uniqid;
+  }
 
-
+  //if (url.indexOf("small") > -1) {
+  //      init(false);
+  //    } else {
+  //      init(true);
+  //}
+ 
 </script>
 </html>
